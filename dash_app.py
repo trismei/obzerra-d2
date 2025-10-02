@@ -29,15 +29,11 @@ def format_incident_hour(hour_value, include_minutes=False):
     formatted = base_time.strftime(time_format).lstrip("0")
     return formatted
 
+    def resolve_final_score(result):
+        """Safely extract a numeric final risk score from a result mapping."""
+        if not isinstance(result, dict):
+            return None
 
-<<<<<<< HEAD
-=======
-# ADD THIS FUNCTION HERE:
->>>>>>> 766d907c (`Added new functions and modified existing code in dash_app.py and utils/fraud_engine.py for improved fraud detection analysis and explanation generation.`)
-def resolve_final_score(result):
-    """Safely extract a numeric final risk score from a result mapping."""
-    if not isinstance(result, dict):
-        return None
 
     score_candidates = [
         result.get('final_risk_score'),
@@ -61,8 +57,6 @@ def resolve_final_score(result):
 
     return None
 
-<<<<<<< HEAD
-=======
 def debug_fraud_indicators(claim_data):
     """Debug function to see what indicators are triggered"""
     print(f"\n=== DEBUG: Claim {claim_data.get('claim_id')} ===")
