@@ -15,6 +15,20 @@ from utils.ml_models import MLModelManager
 from utils.explanations import ExplanationEngine
 from utils.session_manager import SessionManager
 
+
+def format_incident_hour(hour_value, include_minutes=False):
+    """Return a 12-hour formatted time string for the provided hour value."""
+    try:
+        hour_int = int(hour_value)
+    except (TypeError, ValueError):
+        return ""
+
+    hour_int = max(0, min(23, hour_int))
+    base_time = datetime(2000, 1, 1) + timedelta(hours=hour_int)
+    time_format = "%I:%M %p" if include_minutes else "%I %p"
+    formatted = base_time.strftime(time_format).lstrip("0")
+    return formatted
+
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -1115,14 +1129,14 @@ def create_single_claim_layout():
                 html.H6("Incident Information", style={'color': '#cbd5e1', 'marginBottom': '1rem', 'marginTop': '2rem', 'borderBottom': '2px solid #334155', 'paddingBottom': '0.5rem'}),
                 
                 html.Div([
-                    html.Label("Time of Incident (24-hour format)", style={'marginBottom': '0.75rem', 'display': 'block', 'color': '#e2e8f0', 'fontWeight': '500'}),
+                    html.Label("Time of Incident", style={'marginBottom': '0.75rem', 'display': 'block', 'color': '#e2e8f0', 'fontWeight': '500'}),
                     dcc.Slider(
                         id='single-hour',
                         min=0,
                         max=23,
                         step=1,
                         value=12,
-                        marks={i: f'{i:02d}:00' if i % 3 == 0 else str(i) for i in range(0, 24)},
+                        marks={i: format_incident_hour(i) for i in range(0, 24, 3)},
                         tooltip={"placement": "bottom", "always_visible": True}
                     ),
                 ], style={'marginBottom': '2rem'}),
@@ -2293,7 +2307,7 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
                     dbc.Col([
                         html.Div([
                             html.Span("Incident Time: ", style={'color': '#94a3b8'}),
-                            html.Span(f"{hour:02d}:00", style={'color': '#f1f5f9', 'fontWeight': '600'})
+                            html.Span(format_incident_hour(hour, include_minutes=True), style={'color': '#f1f5f9', 'fontWeight': '600'})
                         ], style={'marginTop': '0.5rem'})
                     ], md=6),
                     dbc.Col([
