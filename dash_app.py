@@ -939,8 +939,15 @@ def create_historical_batch_layout(history_item):
             ml_confidence_val = row.get('ml_fraud_probability', 0) * 100
             
             fraud_indicators = row.get('top_indicators', [])
+            if isinstance(fraud_indicators, str):
+                fraud_indicators = [indicator.strip() for indicator in fraud_indicators.split(',') if indicator.strip()]
+            elif isinstance(fraud_indicators, (tuple, set)):
+                fraud_indicators = [str(indicator).strip() for indicator in fraud_indicators if str(indicator).strip()]
+            elif fraud_indicators is None:
+                fraud_indicators = []
+
             fraud_indicators_html = []
-            if fraud_indicators and isinstance(fraud_indicators, list):
+            if fraud_indicators:
                 for indicator in fraud_indicators[:5]:
                     fraud_indicators_html.append(
                         html.Li(indicator, style={
@@ -1956,6 +1963,13 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
             ml_confidence_val = row['ml_fraud_probability'] * 100
             
             fraud_indicators = row.get('top_indicators', [])
+            if isinstance(fraud_indicators, str):
+                fraud_indicators = [indicator.strip() for indicator in fraud_indicators.split(',') if indicator.strip()]
+            elif isinstance(fraud_indicators, (tuple, set)):
+                fraud_indicators = [str(indicator).strip() for indicator in fraud_indicators if str(indicator).strip()]
+            elif fraud_indicators is None:
+                fraud_indicators = []
+
             fraud_indicators_html = []
             if fraud_indicators:
                 for indicator in fraud_indicators[:5]:

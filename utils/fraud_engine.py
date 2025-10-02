@@ -42,6 +42,10 @@ class FraudEngine:
         
         # Calculate final risk score (0-100)
         results['risk_score'] = (results['fraud_score'] * 100).clip(0, 100).round(0).astype(int)
+
+        # Clean and parse triggered rules into structured list
+        results['triggered_rules'] = results['triggered_rules'].str.rstrip(', ')
+        results['top_indicators'] = results['triggered_rules'].apply(self._extract_rule_list)
         
         # Assign risk bands
         results['risk_band'] = pd.cut(
@@ -52,7 +56,7 @@ class FraudEngine:
         
         # Initial fraud prediction based on rules
         results['fraud_prediction'] = (results['risk_score'] >= 70).map({True: 'Y', False: 'N'})
-        
+
         return results
     
     def analyze_single_claim(self, claim_data):
@@ -344,3 +348,13 @@ class FraudEngine:
     def get_rule_weights(self):
         """Get current rule weights for transparency."""
         return {rule: config['weight'] for rule, config in self.rules.items()}
+
+    def _extract_rule_list(self, rules_value):
+        """Convert triggered rules text into a cleaned list of indicators."""
+        if isinstance(rules_value, (list, tuple, set)):
+            return [str(rule).strip() for rule in rules_value if str(rule).strip()]
+
+        if pd.isna(rules_value):
+            return []
+
+        return [rule.strip() for rule in str(rules_value).split(',') if rule.strip()]
