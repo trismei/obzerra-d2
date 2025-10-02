@@ -29,6 +29,34 @@ def format_incident_hour(hour_value, include_minutes=False):
     formatted = base_time.strftime(time_format).lstrip("0")
     return formatted
 
+
+def resolve_final_score(result):
+    """Safely extract a numeric final risk score from a result mapping."""
+    if not isinstance(result, dict):
+        return None
+
+    score_candidates = [
+        result.get('final_risk_score'),
+        result.get('risk_score'),
+        result.get('combined_score'),
+    ]
+
+    for candidate in score_candidates:
+        if candidate is None:
+            continue
+
+        try:
+            value = float(candidate)
+        except (TypeError, ValueError):
+            continue
+
+        if np.isnan(value) or np.isinf(value):
+            continue
+
+        return max(0.0, min(100.0, value))
+
+    return None
+
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -2358,14 +2386,7 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         combined_result['claim_id'] = claim_id
         combined_result['total_claim_amount'] = amount_value
 
-        final_score = combined_result.get('final_risk_score')
-        if final_score is None:
-            final_score = combined_result.get('risk_score')
-
-        try:
-            final_score = None if final_score is None else float(final_score)
-        except (TypeError, ValueError):
-            final_score = None
+        final_score = resolve_final_score(combined_result)
 
         if final_score is None:
             logs.append({
