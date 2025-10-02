@@ -30,6 +30,10 @@ def format_incident_hour(hour_value, include_minutes=False):
     return formatted
 
 
+<<<<<<< HEAD
+=======
+# ADD THIS FUNCTION HERE:
+>>>>>>> 766d907c (`Added new functions and modified existing code in dash_app.py and utils/fraud_engine.py for improved fraud detection analysis and explanation generation.`)
 def resolve_final_score(result):
     """Safely extract a numeric final risk score from a result mapping."""
     if not isinstance(result, dict):
@@ -57,6 +61,18 @@ def resolve_final_score(result):
 
     return None
 
+<<<<<<< HEAD
+=======
+def debug_fraud_indicators(claim_data):
+    """Debug function to see what indicators are triggered"""
+    print(f"\n=== DEBUG: Claim {claim_data.get('claim_id')} ===")
+    print(f"Amount: {claim_data.get('total_claim_amount')}")
+    print(f"Hour: {claim_data.get('incident_hour_of_the_day')}")
+    print(f"Age: {claim_data.get('age')}")
+    print(f"Witnesses: {claim_data.get('witnesses')}")
+    print(f"Police Report: {claim_data.get('police_report_available')}")
+
+>>>>>>> 766d907c (`Added new functions and modified existing code in dash_app.py and utils/fraud_engine.py for improved fraud detection analysis and explanation generation.`)
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -1962,7 +1978,8 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
             rule_results.append(rule_analysis)
 
             if model_ready:
-                ml_predictions.append(ml_manager.predict_single(row.to_dict()))
+                ml_prob = ml_manager.predict_single(row.to_dict())
+                ml_predictions.append({'fraud_probability': ml_prob})
 
         if not rule_results:
             return dbc.Alert("No claims available for analysis after preprocessing.", color="warning"), stats, logs, None, history, None, []
@@ -2282,6 +2299,11 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
 def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incident_type, severity, state, police_report, stats, logs):
     stats = stats or {}
     logs = logs or []
+<<<<<<< HEAD
+=======
+    
+    # Initialize final_score at the very beginning
+>>>>>>> 766d907c (`Added new functions and modified existing code in dash_app.py and utils/fraud_engine.py for improved fraud detection analysis and explanation generation.`)
     final_score = None
 
     if not claim_id or amount is None or hour is None:
@@ -2293,6 +2315,7 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         return dbc.Alert("Please fill in all required fields (Claim ID, Amount, Hour)", color="warning"), stats, logs
 
     try:
+        # Validate amount
         try:
             amount_value = float(amount)
         except (TypeError, ValueError):
@@ -2323,6 +2346,7 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
             'message': f'Analyzing single claim: {claim_id}'
         })
 
+        # Build claim data
         claim_data = {
             'claim_id': claim_id,
             'total_claim_amount': amount_value,
@@ -2336,6 +2360,7 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         if state: claim_data['incident_state'] = state
         if police_report: claim_data['police_report'] = police_report
         
+        # Prepare data
         df = pd.DataFrame([claim_data])
         mapping = {
             'claim_id': 'claim_id',
@@ -2365,8 +2390,10 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
             return dbc.Alert(skip_alert_message, color="warning"), stats, logs
 
         row = processed_df.iloc[0]
+        debug_fraud_indicators(row.to_dict())
         model_ready = ml_manager.is_trained()
         model_status_message = "Model not trained—using rule engine only"
+        
         if not model_ready:
             logs.append({
                 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -2374,10 +2401,13 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
                 'message': model_status_message
             })
 
+        # Get rule analysis
         rule_analysis = fraud_engine.analyze_single_claim(row.to_dict())
 
+        # Combine with ML if available
         if model_ready:
-            ml_prediction = ml_manager.predict_single(row.to_dict())
+            ml_prob = ml_manager.predict_single(row.to_dict())
+            ml_prediction = {'fraud_probability': ml_prob}  # Wrap in dict
             combined_result = fraud_engine.combine_single_prediction(rule_analysis, ml_prediction)
         else:
             combined_result = rule_analysis
@@ -2386,6 +2416,10 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         combined_result['claim_id'] = claim_id
         combined_result['total_claim_amount'] = amount_value
 
+<<<<<<< HEAD
+=======
+        # Ensure combined_result has a valid risk_score
+>>>>>>> 766d907c (`Added new functions and modified existing code in dash_app.py and utils/fraud_engine.py for improved fraud detection analysis and explanation generation.`)
         final_score = resolve_final_score(combined_result)
 
         if final_score is None:
@@ -2396,12 +2430,21 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
             })
             return dbc.Alert(skip_alert_message, color="warning"), stats, logs
 
+<<<<<<< HEAD
         combined_result['final_risk_score'] = final_score
+=======
+        # Update combined_result with normalized final score
+        combined_result['final_risk_score'] = final_score
+        combined_result['risk_score'] = final_score  # Ensure risk_score is also set
+>>>>>>> 766d907c (`Added new functions and modified existing code in dash_app.py and utils/fraud_engine.py for improved fraud detection analysis and explanation generation.`)
         combined_result['risk_level'] = (
             'Low' if final_score < 30
             else 'Medium' if final_score < 70
             else 'High'
         )
+        # Add risk_band as alias for risk_level (for compatibility with explanation engine)
+        combined_result['risk_band'] = combined_result['risk_level']
+
         combined_result['fraud_prediction'] = (
             'Fraud' if final_score >= 70 else 'Legitimate'
         )
@@ -2409,7 +2452,20 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         if 'ml_fraud_prob' in combined_result:
             combined_result.pop('ml_fraud_prob')
 
+        # Add explanation
         combined_result = explanation_engine.add_single_explanation(combined_result)
+
+        # DEBUG: Verify combined_result is still a dict
+        if not isinstance(combined_result, dict):
+            logs.append({
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'type': 'error',
+                'message': f'ERROR: explanation_engine returned {type(combined_result)} instead of dict'
+            })
+            return dbc.Alert(f"Internal error: explanation engine returned wrong type: {type(combined_result)}", color="danger"), stats, logs
+
+
+        # Update session
         session_manager.add_analysis(combined_result)
         
         stats['total_analyzed'] = session_manager.get_total_analyzed()
@@ -2423,17 +2479,29 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
             'message': f'Completed: {claim_id} - Risk: {combined_result["risk_level"]}'
         })
         
+        # Determine risk class for styling
         risk_class = f"risk-{combined_result['risk_level'].lower()}"
         
+<<<<<<< HEAD
         final_score_display = f"{final_score:.1f}/100" if final_score is not None else "N/A"
 
+=======
+        # Display final score
+        final_score_display = f"{final_score:.1f}/100"
+
+        # Build result display
+>>>>>>> 766d907c (`Added new functions and modified existing code in dash_app.py and utils/fraud_engine.py for improved fraud detection analysis and explanation generation.`)
         result_display = html.Div([
-            html.H4("🎯 Fraud Detection Analysis Complete", style={'marginBottom': '2rem', 'color': '#4f46e5'}),
+            html.H4("Analysis Complete", style={'marginBottom': '2rem', 'color': '#4f46e5'}),
+            
+            # Model status warning if applicable
             html.Div(
-                html.Span(model_status_message, className="badge bg-warning text-dark", style={'padding': '0.6rem 1rem', 'fontWeight': '600', 'letterSpacing': '0.5px'}),
+                html.Span(model_status_message, className="badge bg-warning text-dark", 
+                         style={'padding': '0.6rem 1rem', 'fontWeight': '600', 'letterSpacing': '0.5px'}),
                 style={'marginBottom': '1.5rem'}
             ) if not model_ready else None,
             
+            # Claim Summary
             html.Div([
                 html.H6("Claim Summary", style={'marginBottom': '1rem'}),
                 dbc.Row([
@@ -2454,18 +2522,21 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
                     dbc.Col([
                         html.Div([
                             html.Span("Incident Time: ", style={'color': '#94a3b8'}),
-                            html.Span(format_incident_hour(hour, include_minutes=True), style={'color': '#f1f5f9', 'fontWeight': '600'})
+                            html.Span(format_incident_hour(hour, include_minutes=True), 
+                                     style={'color': '#f1f5f9', 'fontWeight': '600'})
                         ], style={'marginTop': '0.5rem'})
                     ], md=6),
                     dbc.Col([
                         html.Div([
                             html.Span("Police Report: ", style={'color': '#94a3b8'}),
-                            html.Span(police_report if police_report else "Not specified", style={'color': '#f1f5f9', 'fontWeight': '600'})
+                            html.Span(police_report if police_report else "Not specified", 
+                                     style={'color': '#f1f5f9', 'fontWeight': '600'})
                         ], style={'marginTop': '0.5rem'})
                     ], md=6) if police_report else html.Div(),
                 ])
             ], className="result-card", style={'marginBottom': '2rem'}),
             
+            # KPI Cards
             dbc.Row([
                 dbc.Col([
                     html.Div([
@@ -2476,7 +2547,8 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
                 dbc.Col([
                     html.Div([
                         html.Div("Risk Level", className="kpi-label"),
-                        html.Span(combined_result['risk_level'], className=risk_class, style={'fontSize': '1.5rem'})
+                        html.Span(combined_result['risk_level'], className=risk_class, 
+                                 style={'fontSize': '1.5rem'})
                     ], className="kpi-card")
                 ], md=4),
                 dbc.Col([
@@ -2488,22 +2560,38 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
                 ], md=4),
             ], style={'marginBottom': '2rem'}),
             
+            # Detailed Explanation
             html.Div([
-                html.H6("🔍 Detailed Explanation", style={'color': '#4f46e5', 'marginBottom': '1rem'}),
-                html.P(combined_result.get('explanation', 'No explanation available'), style={'lineHeight': '1.8'})
+                html.H6("Detailed Explanation", style={'color': '#4f46e5', 'marginBottom': '1rem'}),
+                html.P(combined_result.get('explanation', 'No explanation available'), 
+                      style={'lineHeight': '1.8'})
             ], className="result-card"),
             
+            # Fraud Indicators
             html.Div([
-                html.H6("⚠️ Fraud Indicators Detected", style={'color': '#f59e0b', 'marginBottom': '1rem'}),
-                html.Ul([html.Li(indicator, style={'marginBottom': '0.5rem'}) for indicator in combined_result.get('top_indicators', [])] if combined_result.get('top_indicators') else [html.Li("No specific indicators detected", style={'color': '#10b981'})])
+                html.H6("Fraud Indicators Detected", style={'color': '#f59e0b', 'marginBottom': '1rem'}),
+                html.Ul([
+                    html.Li(indicator, style={'marginBottom': '0.5rem'}) 
+                    for indicator in combined_result.get('top_indicators', [])
+                ] if combined_result.get('top_indicators') else [
+                    html.Li("No specific indicators detected", style={'color': '#10b981'})
+                ])
             ], className="result-card"),
             
+            # Action Recommendation
             html.Div([
-                html.H6("📋 Action Recommendation", style={'color': '#10b981' if combined_result['risk_level'] == 'Low' else '#f59e0b' if combined_result['risk_level'] == 'Medium' else '#ef4444', 'marginBottom': '1rem'}),
+                html.H6("Action Recommendation", style={
+                    'color': '#10b981' if combined_result['risk_level'] == 'Low' 
+                            else '#f59e0b' if combined_result['risk_level'] == 'Medium' 
+                            else '#ef4444', 
+                    'marginBottom': '1rem'
+                }),
                 html.P(
-                    "⛔ IMMEDIATE INVESTIGATION REQUIRED: Escalate to senior fraud investigator. Do not process this claim without thorough review." if combined_result['risk_level'] == 'High'
-                    else "⚠️ ADDITIONAL VERIFICATION NEEDED: Request supporting documentation before processing. Verify witness statements and police reports." if combined_result['risk_level'] == 'Medium'
-                    else "✅ STANDARD PROCESSING APPROVED: Routine documentation review recommended. Claim appears legitimate.",
+                    "IMMEDIATE INVESTIGATION REQUIRED: Escalate to senior fraud investigator. Do not process this claim without thorough review." 
+                    if combined_result['risk_level'] == 'High'
+                    else "ADDITIONAL VERIFICATION NEEDED: Request supporting documentation before processing. Verify witness statements and police reports." 
+                    if combined_result['risk_level'] == 'Medium'
+                    else "STANDARD PROCESSING APPROVED: Routine documentation review recommended. Claim appears legitimate.",
                     style={'lineHeight': '1.8', 'fontWeight': '500'}
                 )
             ], className="result-card")
