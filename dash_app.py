@@ -29,6 +29,34 @@ def format_incident_hour(hour_value, include_minutes=False):
     formatted = base_time.strftime(time_format).lstrip("0")
     return formatted
 
+
+def resolve_final_score(result):
+    """Safely extract a numeric final risk score from a result mapping."""
+    if not isinstance(result, dict):
+        return None
+
+    score_candidates = [
+        result.get('final_risk_score'),
+        result.get('risk_score'),
+        result.get('combined_score'),
+    ]
+
+    for candidate in score_candidates:
+        if candidate is None:
+            continue
+
+        try:
+            value = float(candidate)
+        except (TypeError, ValueError):
+            continue
+
+        if np.isnan(value) or np.isinf(value):
+            continue
+
+        return max(0.0, min(100.0, value))
+
+    return None
+
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
@@ -2254,6 +2282,7 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
 def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incident_type, severity, state, police_report, stats, logs):
     stats = stats or {}
     logs = logs or []
+    final_score = None
 
     if not claim_id or amount is None or hour is None:
         logs.append({
@@ -2357,14 +2386,7 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         combined_result['claim_id'] = claim_id
         combined_result['total_claim_amount'] = amount_value
 
-        final_score = combined_result.get('final_risk_score')
-        if final_score is None:
-            final_score = combined_result.get('risk_score')
-
-        try:
-            final_score = None if final_score is None else float(final_score)
-        except (TypeError, ValueError):
-            final_score = None
+        final_score = resolve_final_score(combined_result)
 
         if final_score is None:
             logs.append({
@@ -2403,6 +2425,8 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         
         risk_class = f"risk-{combined_result['risk_level'].lower()}"
         
+        final_score_display = f"{final_score:.1f}/100" if final_score is not None else "N/A"
+
         result_display = html.Div([
             html.H4("🎯 Fraud Detection Analysis Complete", style={'marginBottom': '2rem', 'color': '#4f46e5'}),
             html.Div(
@@ -2446,7 +2470,7 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
                 dbc.Col([
                     html.Div([
                         html.Div("Final Risk Score", className="kpi-label"),
-                        html.Div(f"{final_score:.1f}/100", className="kpi-value")
+                        html.Div(final_score_display, className="kpi-value")
                     ], className="kpi-card")
                 ], md=4),
                 dbc.Col([
