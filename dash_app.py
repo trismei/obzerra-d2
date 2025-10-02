@@ -950,7 +950,10 @@ def create_historical_batch_layout(history_item):
                 badge_text = 'LOW RISK'
             
             risk_score_val = row['final_risk_score']
-            ml_confidence_val = row.get('ml_fraud_probability', 0) * 100
+            ml_probability = row.get('ml_fraud_probability')
+            if pd.isna(ml_probability):
+                ml_probability = None
+            ml_confidence_val = ml_probability * 100 if ml_probability is not None else None
             
             fraud_indicators = row.get('top_indicators', [])
             if isinstance(fraud_indicators, str):
@@ -1030,8 +1033,14 @@ def create_historical_batch_layout(history_item):
                         ], width=4),
                         dbc.Col([
                             html.Div([
-                                html.Div("ML Confidence", style={'fontSize': '0.8rem', 'color': '#94a3b8', 'marginBottom': '0.3rem', 'textTransform': 'uppercase', 'letterSpacing': '0.5px'}),
-                                html.Div(f"{ml_confidence_val:.2f}%", style={'fontSize': '1.4rem', 'fontWeight': '700', 'color': '#e2e8f0'})
+                                html.Div(
+                                    "ML Confidence" if ml_confidence_val is not None else "Model Status",
+                                    style={'fontSize': '0.8rem', 'color': '#94a3b8', 'marginBottom': '0.3rem', 'textTransform': 'uppercase', 'letterSpacing': '0.5px'}
+                                ),
+                                html.Div(
+                                    f"{ml_confidence_val:.2f}%" if ml_confidence_val is not None else "Rule engine only",
+                                    style={'fontSize': '1.1rem' if ml_confidence_val is None else '1.4rem', 'fontWeight': '700', 'color': '#e2e8f0'}
+                                )
                             ], style={'textAlign': 'center', 'padding': '0.75rem', 'backgroundColor': '#1e293b', 'borderRadius': '8px'})
                         ], width=4)
                     ], style={'marginBottom': '1.5rem'}),
@@ -1908,57 +1917,70 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
         if witnesses_col and witnesses_col != '': mapping['witnesses'] = witnesses_col
         
         processed_df = data_processor.prepare_data(df, mapping)
-        
-        results = []
+
+        model_ready = ml_manager.is_trained()
+        model_status_message = "Model not trained—using rule engine only"
+        if not model_ready:
+            logs.append({
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'type': 'warning',
+                'message': model_status_message
+            })
+
+        rule_results = []
+        ml_predictions = []
         for idx, row in processed_df.iterrows():
             rule_analysis = fraud_engine.analyze_single_claim(row.to_dict())
-            ml_fraud_prob = ml_manager.predict_single(row.to_dict())
-            
-            combined_result = {
-                'claim_id': row.get('claim_id', 'N/A'),
-                'total_claim_amount': row.get('total_claim_amount', 0),
-                'rule_risk_score': rule_analysis['risk_score'],
-                'ml_fraud_probability': ml_fraud_prob,
-                'final_risk_score': (rule_analysis['risk_score'] + ml_fraud_prob * 100) / 2,
-                'risk_level': '',
-                'fraud_prediction': 'Fraud' if ml_fraud_prob > 0.5 else 'Legitimate',
-                'risk_score': (rule_analysis['risk_score'] + ml_fraud_prob * 100) / 2,
-                'triggered_rules': rule_analysis.get('triggered_rules', ''),
-                'ml_fraud_prob': ml_fraud_prob,
-                'top_indicators': rule_analysis.get('top_indicators', []),
-                'explanation': ''
-            }
-            
-            final_score = combined_result['final_risk_score']
-            if final_score < 30:
-                combined_result['risk_level'] = 'Low'
-            elif final_score < 70:
-                combined_result['risk_level'] = 'Medium'
-            else:
-                combined_result['risk_level'] = 'High'
-            
-            combined_result = explanation_engine.add_single_explanation(combined_result)
-            results.append(combined_result)
-            session_manager.add_analysis(combined_result)
-        
-        results_df = pd.DataFrame(results)
-        
+            rule_results.append(rule_analysis)
+
+            if model_ready:
+                ml_predictions.append(ml_manager.predict_single(row.to_dict()))
+
+        if not rule_results:
+            return dbc.Alert("No claims available for analysis after preprocessing.", color="warning"), stats, logs, None, history, None, []
+
+        rule_results_df = pd.DataFrame(rule_results)
+
+        if model_ready and len(ml_predictions) == len(rule_results_df):
+            combined_df = fraud_engine.combine_predictions(rule_results_df, ml_predictions)
+        else:
+            combined_df = rule_results_df.copy()
+            combined_df['ml_fraud_prob'] = None
+
+        results_df = combined_df.copy()
+        results_df['final_risk_score'] = results_df['risk_score'].astype(float)
+        results_df['risk_level'] = results_df['final_risk_score'].apply(
+            lambda x: 'Low' if x < 30 else 'Medium' if x < 70 else 'High'
+        )
+        results_df['fraud_prediction'] = results_df['final_risk_score'].apply(
+            lambda x: 'Fraud' if x >= 70 else 'Legitimate'
+        )
+        results_df['ml_fraud_probability'] = results_df.get('ml_fraud_prob')
+        if 'ml_fraud_prob' in results_df.columns:
+            results_df = results_df.drop(columns=['ml_fraud_prob'])
+
+        results_df = explanation_engine.add_explanations(results_df)
+
+        results_records = results_df.to_dict('records')
+        for record in results_records:
+            session_manager.add_analysis(record)
+
         stats['total_analyzed'] = session_manager.get_total_analyzed()
         stats['flagged_count'] = session_manager.get_flagged_count()
         stats['avg_risk_score'] = session_manager.get_avg_risk_score()
         stats['high_risk_count'] = session_manager.get_high_risk_count()
-        
+
         logs.append({
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'type': 'info',
-            'message': f'Completed analysis: {len(results)} claims processed'
+            'message': f'Completed analysis: {len(results_records)} claims processed'
         })
-        
+
         display_df = results_df[['claim_id', 'total_claim_amount', 'final_risk_score', 'risk_level', 'fraud_prediction', 'explanation']].copy()
         display_df.columns = ['Claim ID', 'Amount (₱)', 'Risk Score', 'Risk Level', 'Prediction', 'Explanation']
         display_df['Amount (₱)'] = display_df['Amount (₱)'].apply(lambda x: f"₱{x:,.2f}")
         display_df['Risk Score'] = display_df['Risk Score'].apply(lambda x: f"{x:.1f}")
-        
+
         claim_cards = []
         for _, row in results_df.iterrows():
             risk_level = row['risk_level']
@@ -1974,7 +1996,8 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
                 badge_text = 'LOW RISK'
             
             risk_score_val = row['final_risk_score']
-            ml_confidence_val = row['ml_fraud_probability'] * 100
+            ml_probability = row.get('ml_fraud_probability')
+            ml_confidence_val = ml_probability * 100 if ml_probability is not None else None
             
             fraud_indicators = row.get('top_indicators', [])
             if isinstance(fraud_indicators, str):
@@ -2057,8 +2080,14 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
                         ], width=4),
                         dbc.Col([
                             html.Div([
-                                html.Div("ML Confidence", style={'fontSize': '0.8rem', 'color': '#94a3b8', 'marginBottom': '0.3rem', 'textTransform': 'uppercase', 'letterSpacing': '0.5px'}),
-                                html.Div(f"{ml_confidence_val:.2f}%", style={'fontSize': '1.4rem', 'fontWeight': '700', 'color': '#e2e8f0'})
+                                html.Div(
+                                    "ML Confidence" if ml_confidence_val is not None else "Model Status",
+                                    style={'fontSize': '0.8rem', 'color': '#94a3b8', 'marginBottom': '0.3rem', 'textTransform': 'uppercase', 'letterSpacing': '0.5px'}
+                                ),
+                                html.Div(
+                                    f"{ml_confidence_val:.2f}%" if ml_confidence_val is not None else "Rule engine only",
+                                    style={'fontSize': '1.1rem' if ml_confidence_val is None else '1.4rem', 'fontWeight': '700', 'color': '#e2e8f0'}
+                                )
                             ], style={'textAlign': 'center', 'padding': '0.75rem', 'backgroundColor': '#1e293b', 'borderRadius': '8px'})
                         ], width=4)
                     ], style={'marginBottom': '1.5rem'}),
@@ -2136,9 +2165,13 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
             
             dbc.Alert([
                 html.I(className="bi bi-check-circle me-2"),
-                f"Successfully analyzed {len(results)} claims"
+                f"Successfully analyzed {len(results_records)} claims"
             ], color="success", style={'marginBottom': '1.5rem'}),
-            
+            html.Div(
+                html.Span(model_status_message, className="badge bg-warning text-dark", style={'padding': '0.6rem 1rem', 'fontWeight': '600', 'letterSpacing': '0.5px'}),
+                style={'marginBottom': '1rem'}
+            ) if not model_ready else None,
+
             dbc.Row([
                 dbc.Col([
                     html.Label("Filter by Risk Level", style={'fontWeight': '600', 'marginBottom': '0.5rem', 'color': '#e2e8f0', 'fontSize': '0.95rem'}),
@@ -2183,9 +2216,9 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'analysis_name': analysis_name,
             'analysis_type': 'batch',
-            'claims_count': len(results),
-            'high_risk_count': len([r for r in results if r['risk_level'] == 'High']),
-            'avg_risk_score': sum([r['final_risk_score'] for r in results]) / len(results),
+            'claims_count': len(results_records),
+            'high_risk_count': len([r for r in results_records if r['risk_level'] == 'High']),
+            'avg_risk_score': sum([r['final_risk_score'] for r in results_records]) / len(results_records),
             'results_data': results_df.to_json(),
             'download_data': download_data
         })
@@ -2300,30 +2333,39 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
             ), stats, logs
 
         row = processed_df.iloc[0]
-        rule_analysis = fraud_engine.analyze_single_claim(row.to_dict())
-        ml_fraud_prob = ml_manager.predict_single(row.to_dict())
+        model_ready = ml_manager.is_trained()
+        model_status_message = "Model not trained—using rule engine only"
+        if not model_ready:
+            logs.append({
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'type': 'warning',
+                'message': model_status_message
+            })
 
-        combined_result = {
-            'claim_id': claim_id,
-            'total_claim_amount': amount_value,
-            'rule_risk_score': rule_analysis['risk_score'],
-            'ml_fraud_probability': ml_fraud_prob,
-            'final_risk_score': (rule_analysis['risk_score'] + ml_fraud_prob * 100) / 2,
-            'risk_score': (rule_analysis['risk_score'] + ml_fraud_prob * 100) / 2,
-            'triggered_rules': rule_analysis.get('triggered_rules', ''),
-            'ml_fraud_prob': ml_fraud_prob,
-            'fraud_prediction': 'Fraud' if ml_fraud_prob > 0.5 else 'Legitimate',
-            'top_indicators': rule_analysis.get('top_indicators', []),
-        }
-        
-        final_score = combined_result['final_risk_score']
-        if final_score < 30:
-            combined_result['risk_level'] = 'Low'
-        elif final_score < 70:
-            combined_result['risk_level'] = 'Medium'
+        rule_analysis = fraud_engine.analyze_single_claim(row.to_dict())
+
+        if model_ready:
+            ml_prediction = ml_manager.predict_single(row.to_dict())
+            combined_result = fraud_engine.combine_single_prediction(rule_analysis, ml_prediction)
         else:
-            combined_result['risk_level'] = 'High'
-        
+            combined_result = rule_analysis
+            combined_result['ml_fraud_prob'] = None
+
+        combined_result['claim_id'] = claim_id
+        combined_result['total_claim_amount'] = amount_value
+        combined_result['final_risk_score'] = float(combined_result['risk_score'])
+        combined_result['risk_level'] = (
+            'Low' if combined_result['final_risk_score'] < 30
+            else 'Medium' if combined_result['final_risk_score'] < 70
+            else 'High'
+        )
+        combined_result['fraud_prediction'] = (
+            'Fraud' if combined_result['final_risk_score'] >= 70 else 'Legitimate'
+        )
+        combined_result['ml_fraud_probability'] = combined_result.get('ml_fraud_prob')
+        if 'ml_fraud_prob' in combined_result:
+            combined_result.pop('ml_fraud_prob')
+
         combined_result = explanation_engine.add_single_explanation(combined_result)
         session_manager.add_analysis(combined_result)
         
@@ -2342,6 +2384,10 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         
         result_display = html.Div([
             html.H4("🎯 Fraud Detection Analysis Complete", style={'marginBottom': '2rem', 'color': '#4f46e5'}),
+            html.Div(
+                html.Span(model_status_message, className="badge bg-warning text-dark", style={'padding': '0.6rem 1rem', 'fontWeight': '600', 'letterSpacing': '0.5px'}),
+                style={'marginBottom': '1.5rem'}
+            ) if not model_ready else None,
             
             html.Div([
                 html.H6("Claim Summary", style={'marginBottom': '1rem'}),
