@@ -66,7 +66,7 @@ def debug_fraud_indicators(claim_data):
     print(f"Witnesses: {claim_data.get('witnesses')}")
     print(f"Police Report: {claim_data.get('police_report_available')}")
 
->>>>>>> 766d907c (`Added new functions and modified existing code in dash_app.py and utils/fraud_engine.py for improved fraud detection analysis and explanation generation.`)
+
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
