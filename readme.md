@@ -15,6 +15,7 @@ A production-ready prototype for insurance claims analysts to triage suspicious 
 - [Testing & Quality Checks](#testing--quality-checks)
 - [Operational Notes](#operational-notes)
 - [Troubleshooting](#troubleshooting)
+- [Briefing Materials](#briefing-materials)
 
 ## Product Overview
 Obzerra focuses on the fraud-prevention needs of Philippine insurers that must process high volumes of motor and property claims under strict turnaround times. The system enables:
@@ -26,13 +27,16 @@ Obzerra focuses on the fraud-prevention needs of Philippine insurers that must p
 
 The application is designed to run offline or within restricted networks, making it suitable for on-premise deployments inside regulated institutions.
 
+Recent enhancements concentrate on richer explainability and analytics guardrails: the Streamlit console and Dash dashboard now surface the same blended rule/ML score that powers the claim triage queue, while the new feature importance explainer and statistical normality tests provide context for spikes in suspicious activity.【F:app.py†L19-L47】【F:utils/fraud_engine.py†L15-L110】【F:utils/feature_explainer.py†L1-L124】【F:utils/statistical_tests.py†L1-L88】
+
 ## Core Capabilities
 - **Portfolio Command Center (Streamlit)** – KPI snapshots, alert queues, and analyst-friendly review tools optimized for widescreen desktops.
 - **Executive Dashboard (Dash)** – C-suite view with macro KPIs, trend visualizations, and segment filters for strategic planning.
 - **Batch Upload Pipeline** – Drag-and-drop CSV import, automated cleansing, feature engineering, and downloadable risk summaries.
 - **Single Claim Scoring** – Guided form for manual case entry with immediate probability output and recommended actions.
-- **Explainability Layer** – Combines rule hits, SHAP feature importances, and natural-language rationales for each claim.
+- **Explainability Layer** – Combines rule hits, SHAP-style feature importances, and natural-language rationales for each claim. The new `FeatureExplainer` module extracts global and local drivers directly from the ensemble models so analysts can defend decisions in audits.【F:utils/feature_explainer.py†L1-L124】
 - **Session Persistence** – Uses a lightweight session manager to cache uploaded data, processed features, and model outputs across tabs.
+- **Quantitative Guardrails** – Built-in normality testing validates when Z-score outlier logic is appropriate and recommends fallbacks whenever the incoming data distribution shifts.【F:utils/statistical_tests.py†L1-L88】
 
 ## Architecture
 ```
@@ -44,7 +48,9 @@ obzerra-d2/
 │   ├── explanations.py     # SHAP + narrative generation utilities
 │   ├── fraud_engine.py     # Rule-based heuristics and score aggregation
 │   ├── ml_models.py        # Training, persistence, and inference pipeline
-│   └── session_manager.py  # Simple in-memory caching for user interactions
+│   ├── feature_explainer.py  # Custom feature importance summarizer for the ensemble
+│   ├── session_manager.py  # Simple in-memory caching for user interactions
+│   └── statistical_tests.py  # Normality testing utilities that inform anomaly scoring
 ├── assets/
 │   ├── insurance_claims_cleaned_fixed.csv
 │   ├── insurance_claims_featured_fixed.csv
@@ -134,3 +140,6 @@ Consider wiring in pytest or great-expectations for regression checks as you pro
 | Slow SHAP explanations | Reduce the number of background samples in `ExplanationEngine.generate_shap_values()` or precompute explanations offline. |
 
 For additional questions, contact the Obzerra engineering team or open an issue in your internal tracker.
+
+## Briefing Materials
+- [Panel & Investor Brief](docs/panel-and-investor-brief.md) – Slide-ready narrative covering product thesis, architecture, and demo guidance for stakeholder presentations.
