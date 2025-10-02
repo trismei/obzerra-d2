@@ -2254,6 +2254,7 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
 def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incident_type, severity, state, police_report, stats, logs):
     stats = stats or {}
     logs = logs or []
+    final_score = None
 
     if not claim_id or amount is None or hour is None:
         logs.append({
@@ -2403,6 +2404,8 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         
         risk_class = f"risk-{combined_result['risk_level'].lower()}"
         
+        final_score_display = f"{final_score:.1f}/100" if final_score is not None else "N/A"
+
         result_display = html.Div([
             html.H4("🎯 Fraud Detection Analysis Complete", style={'marginBottom': '2rem', 'color': '#4f46e5'}),
             html.Div(
@@ -2446,7 +2449,7 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
                 dbc.Col([
                     html.Div([
                         html.Div("Final Risk Score", className="kpi-label"),
-                        html.Div(f"{final_score:.1f}/100", className="kpi-value")
+                        html.Div(final_score_display, className="kpi-value")
                     ], className="kpi-card")
                 ], md=4),
                 dbc.Col([
