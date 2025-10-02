@@ -936,7 +936,18 @@ def create_historical_batch_layout(history_item):
                 badge_text = 'LOW RISK'
             
             risk_score_val = row['final_risk_score']
-            ml_confidence_val = row.get('ml_fraud_probability', 0) * 100
+            ml_model_status = row.get('ml_model_status', 'trained')
+            ml_prob_value = row.get('ml_fraud_probability')
+            if ml_model_status == 'trained' and ml_prob_value is not None:
+                ml_confidence_display = html.Div(
+                    f"{ml_prob_value * 100:.2f}%",
+                    style={'fontSize': '1.4rem', 'fontWeight': '700', 'color': '#e2e8f0'}
+                )
+            else:
+                ml_confidence_display = html.Div(
+                    "Model not trained",
+                    style={'fontSize': '1rem', 'fontWeight': '500', 'color': '#94a3b8'}
+                )
             
             fraud_indicators = row.get('top_indicators', [])
             fraud_indicators_html = []
@@ -1010,7 +1021,7 @@ def create_historical_batch_layout(history_item):
                         dbc.Col([
                             html.Div([
                                 html.Div("ML Confidence", style={'fontSize': '0.8rem', 'color': '#94a3b8', 'marginBottom': '0.3rem', 'textTransform': 'uppercase', 'letterSpacing': '0.5px'}),
-                                html.Div(f"{ml_confidence_val:.2f}%", style={'fontSize': '1.4rem', 'fontWeight': '700', 'color': '#e2e8f0'})
+                                ml_confidence_display
                             ], style={'textAlign': 'center', 'padding': '0.75rem', 'backgroundColor': '#1e293b', 'borderRadius': '8px'})
                         ], width=4)
                     ], style={'marginBottom': '1.5rem'}),
@@ -1888,34 +1899,51 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
         
         processed_df = data_processor.prepare_data(df, mapping)
         
+        model_trained = ml_manager.is_trained()
+
         results = []
         for idx, row in processed_df.iterrows():
             rule_analysis = fraud_engine.analyze_single_claim(row.to_dict())
-            ml_fraud_prob = ml_manager.predict_single(row.to_dict())
-            
-            combined_result = {
-                'claim_id': row.get('claim_id', 'N/A'),
-                'total_claim_amount': row.get('total_claim_amount', 0),
-                'rule_risk_score': rule_analysis['risk_score'],
-                'ml_fraud_probability': ml_fraud_prob,
-                'final_risk_score': (rule_analysis['risk_score'] + ml_fraud_prob * 100) / 2,
-                'risk_level': '',
-                'fraud_prediction': 'Fraud' if ml_fraud_prob > 0.5 else 'Legitimate',
-                'risk_score': (rule_analysis['risk_score'] + ml_fraud_prob * 100) / 2,
-                'triggered_rules': rule_analysis.get('triggered_rules', ''),
-                'ml_fraud_prob': ml_fraud_prob,
-                'top_indicators': rule_analysis.get('top_indicators', []),
-                'explanation': ''
-            }
-            
-            final_score = combined_result['final_risk_score']
-            if final_score < 30:
-                combined_result['risk_level'] = 'Low'
-            elif final_score < 70:
-                combined_result['risk_level'] = 'Medium'
+            base_result = rule_analysis.copy()
+            base_result['claim_id'] = row.get('claim_id', 'N/A')
+            base_result['total_claim_amount'] = row.get('total_claim_amount', 0)
+            base_result['rule_risk_score'] = rule_analysis.get('risk_score', 0)
+
+            if model_trained:
+                ml_fraud_prob = ml_manager.predict_single(row.to_dict())
+                combined_result = fraud_engine.combine_single_prediction(base_result, ml_fraud_prob)
+                combined_result['ml_model_status'] = 'trained'
+                ml_prob_value = combined_result.get('ml_fraud_prob', ml_fraud_prob)
             else:
-                combined_result['risk_level'] = 'High'
-            
+                combined_result = base_result
+                combined_result['ml_fraud_prob'] = 0.0
+                combined_result['ml_model_status'] = 'not_trained'
+                ml_prob_value = None
+
+            risk_score = int(np.clip(combined_result.get('risk_score', 0), 0, 100))
+            combined_result['risk_score'] = risk_score
+            combined_result['final_risk_score'] = risk_score
+
+            risk_band = combined_result.get('risk_band')
+            if not isinstance(risk_band, str) or risk_band == 'nan' or risk_band is None:
+                if risk_score < 30:
+                    risk_band = 'Low'
+                elif risk_score < 70:
+                    risk_band = 'Medium'
+                else:
+                    risk_band = 'High'
+                combined_result['risk_band'] = risk_band
+
+            combined_result['risk_level'] = risk_band
+
+            fraud_flag = combined_result.get('fraud_prediction', 'N')
+            combined_result['fraud_prediction_flag'] = fraud_flag
+            combined_result['fraud_prediction'] = 'Fraud' if fraud_flag in ['Y', 'Fraud', 'Yes', True] else 'Legitimate'
+
+            combined_result['ml_fraud_probability'] = ml_prob_value
+            combined_result.setdefault('triggered_rules', rule_analysis.get('triggered_rules', ''))
+            combined_result.setdefault('top_indicators', rule_analysis.get('top_indicators', []))
+
             combined_result = explanation_engine.add_single_explanation(combined_result)
             results.append(combined_result)
             session_manager.add_analysis(combined_result)
@@ -1953,7 +1981,18 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
                 badge_text = 'LOW RISK'
             
             risk_score_val = row['final_risk_score']
-            ml_confidence_val = row['ml_fraud_probability'] * 100
+            ml_model_status = row.get('ml_model_status', 'trained')
+            ml_prob_value = row.get('ml_fraud_probability')
+            if ml_model_status == 'trained' and ml_prob_value is not None:
+                ml_confidence_display = html.Div(
+                    f"{ml_prob_value * 100:.2f}%",
+                    style={'fontSize': '1.4rem', 'fontWeight': '700', 'color': '#e2e8f0'}
+                )
+            else:
+                ml_confidence_display = html.Div(
+                    "Model not trained",
+                    style={'fontSize': '1rem', 'fontWeight': '500', 'color': '#94a3b8'}
+                )
             
             fraud_indicators = row.get('top_indicators', [])
             fraud_indicators_html = []
@@ -2030,7 +2069,7 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
                         dbc.Col([
                             html.Div([
                                 html.Div("ML Confidence", style={'fontSize': '0.8rem', 'color': '#94a3b8', 'marginBottom': '0.3rem', 'textTransform': 'uppercase', 'letterSpacing': '0.5px'}),
-                                html.Div(f"{ml_confidence_val:.2f}%", style={'fontSize': '1.4rem', 'fontWeight': '700', 'color': '#e2e8f0'})
+                                ml_confidence_display
                             ], style={'textAlign': 'center', 'padding': '0.75rem', 'backgroundColor': '#1e293b', 'borderRadius': '8px'})
                         ], width=4)
                     ], style={'marginBottom': '1.5rem'}),
@@ -2148,7 +2187,7 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
         if not analysis_name or analysis_name.strip() == '':
             analysis_name = f"Batch Analysis - {datetime.now().strftime('%b %d, %Y %I:%M %p')}"
         
-        download_df = results_df[['claim_id', 'total_claim_amount', 'final_risk_score', 'risk_level', 'fraud_prediction', 'ml_fraud_probability', 'explanation']].copy()
+        download_df = results_df[['claim_id', 'total_claim_amount', 'final_risk_score', 'risk_level', 'fraud_prediction', 'ml_fraud_probability', 'ml_model_status', 'explanation']].copy()
         download_data = download_df.to_json(orient='split')
         
         history.append({
@@ -2230,30 +2269,51 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         processed_df = data_processor.prepare_data(df, mapping)
         
         row = processed_df.iloc[0]
+        model_trained = ml_manager.is_trained()
         rule_analysis = fraud_engine.analyze_single_claim(row.to_dict())
-        ml_fraud_prob = ml_manager.predict_single(row.to_dict())
-        
-        combined_result = {
-            'claim_id': claim_id,
-            'total_claim_amount': amount,
-            'rule_risk_score': rule_analysis['risk_score'],
-            'ml_fraud_probability': ml_fraud_prob,
-            'final_risk_score': (rule_analysis['risk_score'] + ml_fraud_prob * 100) / 2,
-            'risk_score': (rule_analysis['risk_score'] + ml_fraud_prob * 100) / 2,
-            'triggered_rules': rule_analysis.get('triggered_rules', ''),
-            'ml_fraud_prob': ml_fraud_prob,
-            'fraud_prediction': 'Fraud' if ml_fraud_prob > 0.5 else 'Legitimate',
-            'top_indicators': rule_analysis.get('top_indicators', []),
-        }
-        
-        final_score = combined_result['final_risk_score']
-        if final_score < 30:
-            combined_result['risk_level'] = 'Low'
-        elif final_score < 70:
-            combined_result['risk_level'] = 'Medium'
+
+        base_result = rule_analysis.copy()
+        base_result['claim_id'] = claim_id
+        base_result['total_claim_amount'] = amount
+        base_result['rule_risk_score'] = rule_analysis.get('risk_score', 0)
+
+        if model_trained:
+            ml_fraud_prob = ml_manager.predict_single(row.to_dict())
+            combined_result = fraud_engine.combine_single_prediction(base_result, ml_fraud_prob)
+            combined_result['ml_model_status'] = 'trained'
+            ml_prob_value = combined_result.get('ml_fraud_prob', ml_fraud_prob)
         else:
-            combined_result['risk_level'] = 'High'
-        
+            combined_result = base_result
+            combined_result['ml_fraud_prob'] = 0.0
+            combined_result['ml_model_status'] = 'not_trained'
+            ml_prob_value = None
+
+        risk_score = int(np.clip(combined_result.get('risk_score', 0), 0, 100))
+        combined_result['risk_score'] = risk_score
+        combined_result['final_risk_score'] = risk_score
+
+        risk_band = combined_result.get('risk_band')
+        if not isinstance(risk_band, str) or risk_band == 'nan' or risk_band is None:
+            if risk_score < 30:
+                risk_band = 'Low'
+            elif risk_score < 70:
+                risk_band = 'Medium'
+            else:
+                risk_band = 'High'
+            combined_result['risk_band'] = risk_band
+
+        combined_result['risk_level'] = risk_band
+
+        fraud_flag = combined_result.get('fraud_prediction', 'N')
+        combined_result['fraud_prediction_flag'] = fraud_flag
+        combined_result['fraud_prediction'] = 'Fraud' if fraud_flag in ['Y', 'Fraud', 'Yes', True] else 'Legitimate'
+
+        combined_result['ml_fraud_probability'] = ml_prob_value
+        combined_result.setdefault('triggered_rules', rule_analysis.get('triggered_rules', ''))
+        combined_result.setdefault('top_indicators', rule_analysis.get('top_indicators', []))
+
+        final_score = combined_result['final_risk_score']
+
         combined_result = explanation_engine.add_single_explanation(combined_result)
         session_manager.add_analysis(combined_result)
         
