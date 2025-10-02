@@ -1,184 +1,136 @@
-# replit.md
+# Obzerra Fraud Detection Platform
 
-## Overview
+A production-ready prototype for insurance claims analysts to triage suspicious activity using a blend of heuristic rules and machine-learning models. The platform ships with both a Streamlit command center and a Dash executive dashboard so operations, data science, and compliance teams can work from a shared dataset while focusing on the workflows that matter to them.
 
-Obzerra is a local-first fraud detection MVP specifically designed for Philippine insurance claims officers. The system provides an intuitive Dash-based web interface for analyzing insurance claims using a combination of rule-based detection algorithms and machine learning models. The application focuses on simplicity and user-friendliness, allowing claims officers to upload batch CSV files for comprehensive fraud analysis. All processing is done locally without external data transmission, ensuring data privacy and security.
+## Table of Contents
+- [Product Overview](#product-overview)
+- [Core Capabilities](#core-capabilities)
+- [Architecture](#architecture)
+- [Data Assets](#data-assets)
+- [Local Development Guide](#local-development-guide)
+  - [Using UV (recommended)](#using-uv-recommended)
+  - [Using pip](#using-pip)
+  - [Opening in VS Code](#opening-in-vs-code)
+- [Running the Applications](#running-the-applications)
+- [Testing & Quality Checks](#testing--quality-checks)
+- [Operational Notes](#operational-notes)
+- [Troubleshooting](#troubleshooting)
 
-## Recent Changes (October 2025)
+## Product Overview
+Obzerra focuses on the fraud-prevention needs of Philippine insurers that must process high volumes of motor and property claims under strict turnaround times. The system enables:
 
-### Analysis Naming & History Enhancements (Oct 2, 2025)
-Added comprehensive naming and history features for better analysis organization:
+- Rapid ingestion of batched claim files with automatic schema validation.
+- Dual scoring via deterministic fraud rules and gradient-boosted ensemble models.
+- Explainable insights that expose which policyholder, incident, or financial features drove the decision.
+- Historical logging so analysts can audit previous decisions and export evidence packets.
 
-1. **Analysis Naming Feature**:
-   - Optional name input field in batch analysis section with placeholder examples
-   - Auto-generates "Batch Analysis - {timestamp}" when left empty
-   - Stores analysis_name and analysis_type in history records
-   - Helper text guides users: "Give this analysis a name to easily find it in your history later"
+The application is designed to run offline or within restricted networks, making it suitable for on-premise deployments inside regulated institutions.
 
-2. **Enhanced History View**:
-   - Premium timeline design with analysis names displayed prominently
-   - Type indicators (Batch/Single) with appropriate icons
-   - Click "View Details" to reload historical analyses with full premium card layout
-   - Download capability for historical analyses (CSV export)
-   - Backwards compatible with unnamed legacy entries
+## Core Capabilities
+- **Portfolio Command Center (Streamlit)** – KPI snapshots, alert queues, and analyst-friendly review tools optimized for widescreen desktops.
+- **Executive Dashboard (Dash)** – C-suite view with macro KPIs, trend visualizations, and segment filters for strategic planning.
+- **Batch Upload Pipeline** – Drag-and-drop CSV import, automated cleansing, feature engineering, and downloadable risk summaries.
+- **Single Claim Scoring** – Guided form for manual case entry with immediate probability output and recommended actions.
+- **Explainability Layer** – Combines rule hits, SHAP feature importances, and natural-language rationales for each claim.
+- **Session Persistence** – Uses a lightweight session manager to cache uploaded data, processed features, and model outputs across tabs.
 
-3. **UI Polish Updates**:
-   - Fixed risk score formatting to exactly 2 decimal places throughout application
-   - Added "-- No Data --" option to optional field dropdowns in column mapping
-   - Removed infinite progress animation, replaced with clean Dash loading spinner
-   - Fixed text alignment issues caused by inconsistent decimal formatting
+## Architecture
+```
+obzerra-d2/
+├── app.py                  # Streamlit command center
+├── dash_app.py             # Dash dashboard for executives
+├── utils/
+│   ├── data_processor.py   # Cleaning, feature engineering, schema validation
+│   ├── explanations.py     # SHAP + narrative generation utilities
+│   ├── fraud_engine.py     # Rule-based heuristics and score aggregation
+│   ├── ml_models.py        # Training, persistence, and inference pipeline
+│   └── session_manager.py  # Simple in-memory caching for user interactions
+├── assets/
+│   ├── insurance_claims_cleaned_fixed.csv
+│   ├── insurance_claims_featured_fixed.csv
+│   ├── sample_data.csv
+│   └── data_dictionary_engineered.csv
+├── pyproject.toml          # Project metadata and dependency definition
+├── uv.lock                 # Resolved dependency graph for repeatable installs
+└── readme.md               # This guide
+```
 
-### Enterprise-Grade Design Overhaul (Oct 2, 2025)
-The system has been completely transformed with Fortune 500-level visual polish and premium midnight-indigo design:
+Both `app.py` and `dash_app.py` automatically train the bundled models on startup by reading `assets/insurance_claims_featured_fixed.csv`. Replace this file with your own engineered dataset to adapt the solution to a different insurance line.
 
-1. **Premium Design System Implementation**:
-   - Midnight-indigo color palette (#0a0e27, #0f1629, #1a1f3a) with platinum accents (#f8fafc, #e2e8f0)
-   - Radial gradient background with ethereal ellipse effect
-   - Inter & IBM Plex Sans typography from Google Fonts for professional hierarchy
-   - CSS custom properties system for consistent theming throughout
-   - Frosted-glass card effects using backdrop-filter blur(20px) and rgba backgrounds
-   - Premium shadow system (sm, md, lg) with glow effects
-   - Smooth cubic-bezier transitions for all interactive elements
+## Data Assets
+| File | Purpose | Notes |
+| --- | --- | --- |
+| `insurance_claims_featured_fixed.csv` | Primary training corpus with engineered features. | Loaded during application startup for model refreshes. |
+| `insurance_claims_cleaned_fixed.csv` | Cleaned but un-engineered claims used for demonstrations. | Helpful for validating the preprocessing pipeline. |
+| `data_dictionary_engineered.csv` | Column-level documentation for the engineered dataset. | Surface this to analysts when onboarding. |
+| `sample_data.csv` | Lightweight sample for UI smoke tests. | Safe to share publicly; contains anonymized values. |
 
-2. **Executive Dashboard Redesign**:
-   - Premium KPI cards with floating icons, gradient accent bars, and micro-statistics
-   - Enhanced empty states with centered icon and professional messaging
-   - Risk distribution donut chart with pull effects and custom fonts
-   - Top fraud indicators bar chart with gradient colorscale
-   - All charts in frosted-glass containers with proper spacing
+All assets are stored locally in `assets/` to avoid any dependency on third-party storage providers.
 
-3. **Modern CSV Data Preview**:
-   - Metadata card grid showing total rows, columns breakdown, data quality percentage, and filename
-   - Column chips display (first 15 columns with "more" indicator)
-   - Styled data table with alternating rows, dark theme, and proper typography
-   - All wrapped in frosted-glass containers with premium borders
+## Local Development Guide
+### Using UV (recommended)
+1. [Install UV](https://docs.astral.sh/uv/getting-started/installation/) if it is not already on your machine.
+2. Create the environment and install dependencies:
+   ```bash
+   uv sync
+   ```
+3. Activate the virtual environment (UV prints the exact command for your shell).
 
-4. **Premium History Timeline**:
-   - Timeline design with left border and circular gradient markers
-   - History cards with gradient backgrounds and mini KPI displays
-   - "View Details" buttons with primary gradient and shadow effects
-   - Smooth hover transitions and professional spacing
+### Using pip
+1. Ensure Python 3.11 or newer is available.
+2. Create a virtual environment:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   ```
+3. Install the project in editable mode:
+   ```bash
+   pip install -e .
+   ```
 
-5. **Enhanced Header & Navigation**:
-   - Gradient header with top border accent and radial background
-   - Brand title with gradient text effect
-   - Premium nav tabs with frosted background, hover states, and gradient active state
+### Opening in VS Code
+1. Launch VS Code and choose **File → Open Folder…** to select the repository root.
+2. Install the **Python**, **Pylance**, and **Black Formatter** extensions for linting and autocompletion.
+3. When prompted, select the virtual environment created above (`.venv` or the UV environment) as the interpreter.
+4. Add a `.vscode/launch.json` entry if you want one-click debugging of `app.py` or `dash_app.py`.
 
-### Previous Enhancements (Oct 2025)
-6. **CSV Export Functionality**: Added download button with timestamped CSV export capability for batch analysis results including all key metrics and explanations
-7. **5-Tab Interface**: Added Single Claim Analysis (quick individual claim checks), System Logs (real-time analysis tracking), and User Guide (comprehensive documentation) tabs
-8. **Comprehensive Single Claim Form**: Added police report field, incident type/severity dropdowns, state location field, and incident hour slider (0-23) with visual marks for professional data entry
-9. **Enhanced Session Management**: Extended SessionManager with helper methods for dashboard KPIs (total_analyzed, flagged_count, avg_risk_score, high_risk_count)
-10. **Dash Interface Migration**: Successfully migrated from Streamlit to Dash framework to meet capstone requirements
-10. **KNN Model Integration**: Added K-Nearest Neighbors (K=7, distance-weighted) to ML ensemble with optimized weights (LR 35%, RF 40%, KNN 25%)
-11. **Normality Testing**: Implemented Shapiro-Wilk and Kolmogorov-Smirnov tests for Z-score analysis with IQR fallback for non-normal distributions
-12. **Custom SHAP-like Explainability**: Created FeatureExplainer class that extracts feature importance from tree-based models and generates per-prediction contribution analysis
-13. **Enhanced High-Frequency Detection**: Implemented sophisticated frequency analysis supporting pre-calculated flags, 30-day rolling windows, and policy-based tracking (>3 claims threshold)
-14. **Bug Fixes**: Resolved critical runtime bugs in DataProcessor, FraudEngine, MLModelManager, ExplanationEngine, and SessionManager
+## Running the Applications
+After activating your environment, choose the interface that fits your workflow:
 
-### Current Performance Metrics
-- Ensemble Accuracy: 57.5%
-- Precision: 24.3%
-- Recall: 34.7%
-- F1-Score: 28.6%
-- PR-AUC: 0.269
-- Cross-validation: LR F1=0.373, RF F1=0.173, KNN F1=0.147
+- **Streamlit operations console**
+  ```bash
+  streamlit run app.py
+  ```
+  The UI becomes available at `http://localhost:8501`.
 
-## User Preferences
+- **Dash executive dashboard**
+  ```bash
+  python dash_app.py
+  ```
+  Access it at `http://127.0.0.1:8050`.
 
-Preferred communication style: Simple, everyday language.
+Both scripts will log progress while retraining the embedded LightGBM/XGBoost ensemble. Expect the first run to take a few seconds depending on hardware.
 
-## System Architecture
+## Testing & Quality Checks
+While no automated suites are bundled yet, the following manual checks keep the system healthy:
 
-### Frontend Architecture
-- **Framework**: Dash with dash-bootstrap-components featuring enterprise-grade midnight-indigo design system
-- **Design Language**: Fortune 500-level visual polish with frosted-glass effects, premium gradients, and professional typography
-- **Layout**: 5-tab interface with Dashboard, Batch Analysis, Single Claim Analysis, System Logs, and User Guide views
-- **User Interface Components**:
-  - **Dashboard Tab**: Executive KPI cards with floating icons, gradient accents, mini-statistics, sparklines, and enhanced Plotly visualizations in frosted-glass containers
-  - **Batch Analysis Tab**: Premium CSV upload with radial gradient hover, metadata cards (rows/columns/quality/filename), column chips display, styled data table with alternating rows, and interactive charts
-  - **Single Claim Tab**: Form-based individual claim analysis with segmented sections and professional input styling
-  - **System Logs Tab**: Premium timeline design with circular gradient markers, history cards showing mini KPIs, and "View Details" buttons with gradient effects
-  - **User Guide Tab**: Comprehensive documentation with clean typography and proper hierarchy
-  - Real-time filtering and sorting capabilities with premium dropdown styling
+- **Data validation** – Load `sample_data.csv` through the batch upload flow and confirm the derived metrics match expectations.
+- **Model sanity** – Replace the training dataset with a known edge-case sample to verify rule overrides and SHAP explanations fire correctly.
+- **Performance** – Monitor terminal logs for processing durations; anything above a few seconds per 1,000 rows warrants profiling the `DataProcessor`.
 
-### Backend Architecture
-- **Core Detection Engine**: Rule-based fraud detection system (`FraudEngine`) implementing weighted scoring across 8 fraud indicators
-- **Data Processing Pipeline**: Modular data processor handling cleaning, validation, feature engineering, and duplicate resolution
-- **ML Pipeline**: Ensemble approach combining Logistic Regression, Random Forest, and K-Nearest Neighbors models with SMOTE balancing for imbalanced datasets
-- **Normality Testing**: Statistical validation using Shapiro-Wilk and Kolmogorov-Smirnov tests before Z-score analysis, with IQR fallback for non-normal data
-- **Custom SHAP-like Explainability**: Feature importance explainer that computes per-prediction contributions and generates human-readable explanations
-- **Explanation System**: Converts technical ML outputs into user-friendly insights using plain-language templates
-- **Session Management**: Framework-agnostic in-memory persistence for analysis history and session statistics
+Consider wiring in pytest or great-expectations for regression checks as you productionize the solution.
 
-### Fraud Detection Logic
-- **Rule-Based Analysis**: 8 weighted fraud indicators including:
-  - Z-score outliers for claim amounts with normality testing (weight: 0.2)
-  - Benford's Law analysis for number authenticity (weight: 0.15)
-  - Temporal pattern analysis for unusual incident hours (weight: 0.1)
-  - Round amount detection (weight: 0.1)
-  - High-value claim flagging (weight: 0.15)
-  - Young claimant high-value combinations (weight: 0.1)
-  - Witness validation patterns (weight: 0.1)
-  - High-frequency claims detection (>3 claims in 30 days, weight: 0.1)
-- **Risk Scoring**: 0-100 scale with Low (0-30), Medium (31-70), High (71-100) risk bands
-- **Feature Engineering**: Automated creation of derived features from raw claim data
+## Operational Notes
+- The ML models are trained in-memory on startup and are not persisted to disk; schedule warm-up runs before analyst shifts if cold-start latency is a concern.
+- All styling assets are implemented via inline CSS and Dash/Streamlit theming, so branding updates can be made centrally inside each app file.
+- No vendor-specific services are required—everything runs with local Python dependencies for easier on-premise deployment.
 
-### Data Management
-- **Local Processing**: All data processing occurs locally without external transmission
-- **Column Mapping System**: Flexible mapping allowing users to map CSV columns to internal schema
-- **Required Fields**: claim_id, total_claim_amount, incident_hour_of_the_day
-- **Optional Fields**: age, incident_state, incident_severity, incident_type, witnesses
-- **Data Validation**: Comprehensive cleaning with automatic duplicate handling and missing value imputation
+## Troubleshooting
+| Symptom | Suggested Fix |
+| --- | --- |
+| Models fail to train on startup | Confirm `assets/insurance_claims_featured_fixed.csv` exists and that the Python process has read permission. |
+| CSV uploads rejected | Validate column names against `data_dictionary_engineered.csv`; update `DataProcessor.REQUIRED_COLUMNS` if you extend the schema. |
+| UI loads without charts | Ensure Plotly is installed in the active environment and that no corporate proxy is blocking websocket connections. |
+| Slow SHAP explanations | Reduce the number of background samples in `ExplanationEngine.generate_shap_values()` or precompute explanations offline. |
 
-### ML Model Architecture (Enhanced for Enterprise-Grade Performance)
-- **Advanced Ensemble Approach**: 
-  - Enhanced Logistic Regression with class_weight='balanced' and L2 regularization (C=0.1)
-  - Enhanced Random Forest (200 estimators, depth 15, class_weight='balanced')
-  - K-Nearest Neighbors (K=5, weights='distance') for local pattern detection
-  - Optional LightGBM/XGBoost gradient boosting (graceful fallback if unavailable)
-  - Optimized ensemble weights: LR=35%, RF=40%, KNN=25% (baseline) or LR=15%, RF=20%, KNN=15%, LGB=25%, XGB=25% (advanced)
-- **Probability Calibration**: 
-  - CalibratedClassifierCV with isotonic method for all models
-  - Improves confidence score reliability for business decisions
-  - Calibrated on non-SMOTE data to prevent distribution bias
-- **Advanced Data Balancing**: 
-  - SMOTETomek (SMOTE + Tomek links cleaning) for superior class balance
-  - Fallback to regular SMOTE if needed
-  - Handles imbalanced datasets with 24.7% fraud rate effectively
-- **Robust Evaluation Pipeline**:
-  - 5-fold stratified cross-validation with F1 scoring
-  - Comprehensive metrics: Accuracy, Precision, Recall, F1, ROC-AUC, PR-AUC
-  - Individual model performance tracking
-  - Test set evaluation with 80/20 split
-- **Feature Engineering & Importance**:
-  - StandardScaler for numerical feature normalization
-  - Averaged feature importance across RF/LGB/XGB tree-based models
-  - Consistent feature schema between training and prediction
-- **Model Training & Deployment**: 
-  - Requires minimum 50 samples with at least 5 positive fraud cases
-  - Automatic training on startup using insurance_claims_featured_fixed.csv (1000 samples, 247 fraud cases)
-  - Fallback training on batch data with synthetic labels if real datasets unavailable
-  - Robust error handling with graceful degradation
-
-## External Dependencies
-
-### Core Libraries
-- **Dash**: Web application framework for the user interface
-- **dash-bootstrap-components**: Bootstrap components for Dash (modern clean design)
-- **Pandas**: Data manipulation and analysis
-- **NumPy**: Numerical computing for statistical operations
-- **Plotly**: Interactive data visualization (express and graph_objects)
-- **Scikit-learn**: Machine learning models and preprocessing utilities
-- **Imbalanced-learn**: SMOTE implementation for handling imbalanced datasets
-- **SciPy**: Statistical functions for fraud detection algorithms
-- **Joblib**: Model serialization and persistence
-
-### Data Processing Dependencies
-- **datetime**: Time-based feature engineering and session management
-- **re**: Regular expression processing for data validation
-- **base64/io**: File handling for CSV upload functionality
-- **json**: Configuration and session data serialization
-
-### No External Services
-The system is designed to be completely local-first with no external API calls, database connections, or cloud service dependencies, ensuring data privacy and offline functionality.
+For additional questions, contact the Obzerra engineering team or open an issue in your internal tracker.
