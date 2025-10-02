@@ -2191,20 +2191,51 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
     prevent_initial_call=True
 )
 def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incident_type, severity, state, police_report, stats, logs):
+    stats = stats or {}
+    logs = logs or []
+
     if not claim_id or amount is None or hour is None:
+        logs.append({
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'type': 'error',
+            'message': 'Validation failed: required fields are missing for single claim analysis.'
+        })
         return dbc.Alert("Please fill in all required fields (Claim ID, Amount, Hour)", color="warning"), stats, logs
-    
+
     try:
-        logs = logs or []
+        try:
+            amount_value = float(amount)
+        except (TypeError, ValueError):
+            logs.append({
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'type': 'error',
+                'message': f'Validation failed: non-numeric claim amount received ({amount}).'
+            })
+            return dbc.Alert(
+                "Please enter a numeric claim amount within the acceptable range (greater than zero pesos).",
+                color="warning"
+            ), stats, logs
+
+        if amount_value <= 0:
+            logs.append({
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'type': 'error',
+                'message': f'Validation failed: claim amount must be greater than zero. Received {amount_value}.'
+            })
+            return dbc.Alert(
+                "Claim amounts must be greater than zero pesos to be evaluated. Please update the value within the acceptable range.",
+                color="warning"
+            ), stats, logs
+
         logs.append({
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'type': 'info',
             'message': f'Analyzing single claim: {claim_id}'
         })
-        
+
         claim_data = {
             'claim_id': claim_id,
-            'total_claim_amount': float(amount),
+            'total_claim_amount': amount_value,
             'incident_hour_of_the_day': int(hour)
         }
         
@@ -2228,14 +2259,25 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         if state: mapping['incident_state'] = 'incident_state'
         
         processed_df = data_processor.prepare_data(df, mapping)
-        
+
+        if processed_df.empty:
+            logs.append({
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'type': 'warning',
+                'message': 'Preprocessing filtered out all rows; claim amount below allowed minimum.'
+            })
+            return dbc.Alert(
+                "Entered claim amount is below the allowed minimum for analysis. Please enter a value within the acceptable range (greater than zero pesos).",
+                color="warning"
+            ), stats, logs
+
         row = processed_df.iloc[0]
         rule_analysis = fraud_engine.analyze_single_claim(row.to_dict())
         ml_fraud_prob = ml_manager.predict_single(row.to_dict())
-        
+
         combined_result = {
             'claim_id': claim_id,
-            'total_claim_amount': amount,
+            'total_claim_amount': amount_value,
             'rule_risk_score': rule_analysis['risk_score'],
             'ml_fraud_probability': ml_fraud_prob,
             'final_risk_score': (rule_analysis['risk_score'] + ml_fraud_prob * 100) / 2,
@@ -2285,7 +2327,7 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
                     dbc.Col([
                         html.Div([
                             html.Span("Amount: ", style={'color': '#94a3b8'}),
-                            html.Span(f"₱{amount:,.2f}", style={'color': '#f1f5f9', 'fontWeight': '600'})
+                            html.Span(f"₱{amount_value:,.2f}", style={'color': '#f1f5f9', 'fontWeight': '600'})
                         ])
                     ], md=6),
                 ]),
