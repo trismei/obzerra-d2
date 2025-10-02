@@ -269,13 +269,14 @@ class SessionManager:
         return len(self._session_state['all_results'])
     
     def get_flagged_count(self):
-        """Get count of claims flagged (Medium or High risk)."""
+        """Get count of claims flagged as HIGH RISK ONLY."""
         if 'all_results' not in self._session_state or not self._session_state['all_results']:
             return 0
         df = pd.DataFrame(self._session_state['all_results'])
         if 'risk_level' not in df.columns:
             return 0
-        return len(df[df['risk_level'].isin(['Medium', 'High'])])
+        # Only count HIGH RISK (70+) as flagged
+        return len(df[df['risk_level'] == 'High'])
     
     def get_avg_risk_score(self):
         """Get average risk score across all claims."""

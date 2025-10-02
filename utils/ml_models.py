@@ -126,10 +126,10 @@ class MLModelManager:
             X_train_scaled = self.scaler.fit_transform(X_train)
             X_test_scaled = self.scaler.transform(X_test)
             
-            # Apply SMOTE to handle imbalanced data
+           # Apply SMOTE to handle imbalanced data
             smote = SMOTE(random_state=42)
             X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
-            
+             
             # Train all core models (LR + RF + KNN)
             self.logistic_model.fit(X_train_balanced, y_train_balanced)
             self.rf_model.fit(X_train_balanced, y_train_balanced)
