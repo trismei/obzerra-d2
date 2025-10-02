@@ -63,6 +63,17 @@ class DataProcessor:
     
     def _clean_data(self, df):
         """Clean and validate the data."""
+        # Handle both DataFrame and dict/Series input
+        if isinstance(df, dict):
+            df = pd.DataFrame([df])
+        elif isinstance(df, pd.Series):
+            df = df.to_frame().T
+        elif not isinstance(df, pd.DataFrame):
+            raise ValueError(f"Expected DataFrame, dict, or Series, got {type(df)}")
+        
+        # Make a copy to avoid modifying original
+        df = df.copy()
+        
         # Convert claim amount to numeric
         if 'total_claim_amount' in df.columns:
             df['total_claim_amount'] = pd.to_numeric(df['total_claim_amount'], errors='coerce')
@@ -73,18 +84,18 @@ class DataProcessor:
         if 'incident_hour_of_the_day' in df.columns:
             df['incident_hour_of_the_day'] = pd.to_numeric(df['incident_hour_of_the_day'], errors='coerce')
             df['incident_hour_of_the_day'] = df['incident_hour_of_the_day'].fillna(12)  # Default to noon
-            df['incident_hour_of_the_day'] = df['incident_hour_of_the_day'].clip(0, 23)
+            df['incident_hour_of_the_day'] = df['incident_hour_of_the_day'].clip(lower=0, upper=23)
         
         # Convert age to numeric if present
         if 'age' in df.columns:
             df['age'] = pd.to_numeric(df['age'], errors='coerce')
             df['age'] = df['age'].fillna(35)  # Default age
-            df['age'] = df['age'].clip(18, 100)
+            df['age'] = df['age'].clip(lower=18, upper=100)
         
         # Convert witnesses to numeric if present
         if 'witnesses' in df.columns:
             df['witnesses'] = pd.to_numeric(df['witnesses'], errors='coerce')
-            df['witnesses'] = df['witnesses'].fillna(1).clip(0, 10)
+            df['witnesses'] = df['witnesses'].fillna(1).clip(lower=0, upper=10)
         
         return df
     
