@@ -2407,6 +2407,7 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         combined_result['claim_id'] = claim_id
         combined_result['total_claim_amount'] = amount_value
 
+            # Ensure combined_result has a valid risk_score
         final_score = resolve_final_score(combined_result)
 
         if final_score is None:
@@ -2417,18 +2418,9 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
             })
             return dbc.Alert(skip_alert_message, color="warning"), stats, logs
 
-
         # Update combined_result with normalized final score
         combined_result['final_risk_score'] = final_score
         combined_result['risk_score'] = final_score  # Ensure risk_score is also set
-
-        combined_result['risk_level'] = (
-            'Low' if final_score < 30
-            else 'Medium' if final_score < 70
-            else 'High'
-        )
-        # Add risk_band as alias for risk_level (for compatibility with explanation engine)
-        combined_result['risk_band'] = combined_result['risk_level']
 
         combined_result['fraud_prediction'] = (
             'Fraud' if final_score >= 70 else 'Legitimate'
@@ -2439,17 +2431,7 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
 
         # Add explanation
         combined_result = explanation_engine.add_single_explanation(combined_result)
-
-        # DEBUG: Verify combined_result is still a dict
-        if not isinstance(combined_result, dict):
-            logs.append({
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'type': 'error',
-                'message': f'ERROR: explanation_engine returned {type(combined_result)} instead of dict'
-            })
-            return dbc.Alert(f"Internal error: explanation engine returned wrong type: {type(combined_result)}", color="danger"), stats, logs
-
-
+        
         # Update session
         session_manager.add_analysis(combined_result)
         
@@ -2467,8 +2449,6 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         # Determine risk class for styling
         risk_class = f"risk-{combined_result['risk_level'].lower()}"
         
-        final_score_display = f"{final_score:.1f}/100" if final_score is not None else "N/A"
-
         # Display final score
         final_score_display = f"{final_score:.1f}/100"
 
@@ -2541,7 +2521,7 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
                     ], className="kpi-card")
                 ], md=4),
             ], style={'marginBottom': '2rem'}),
-            
+                     
             # Detailed Explanation
             html.Div([
                 html.H6("Detailed Explanation", style={'color': '#4f46e5', 'marginBottom': '1rem'}),
