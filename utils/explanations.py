@@ -110,69 +110,62 @@ class ExplanationEngine:
     def add_explanations(self, results_df):
         """Add plain-language explanations to batch results."""
         results = results_df.copy()
-        
+
+        results['top_indicators'] = results.apply(self._get_rules_list, axis=1)
+
         # Add primary reasons
         results['reason_1'] = results.apply(self._get_primary_reason, axis=1)
         results['reason_2'] = results.apply(self._get_secondary_reason, axis=1)
-        
+
         # Add detailed explanations
         results['explanation'] = results.apply(self._generate_explanation, axis=1)
-        
-        # Clean up triggered rules display
-        results['triggered_rules'] = results['triggered_rules'].str.rstrip(', ')
-        
+
+        # Ensure triggered rules mirror parsed indicators
+        results['triggered_rules'] = results['top_indicators'].apply(lambda rules: ', '.join(rules))
+
         return results
-    
+
     def add_single_explanation(self, result):
         """Add explanation to a single claim result."""
+        result['top_indicators'] = self._get_rules_list(result)
+        result['triggered_rules'] = ', '.join(result['top_indicators'])
+
         # Get primary and secondary reasons
         result['reason_1'] = self._get_primary_reason(result)
         result['reason_2'] = self._get_secondary_reason(result)
-        
+
         # Generate detailed explanation
         result['explanation'] = self._generate_explanation(result)
-        
-        # Clean up triggered rules
-        if 'triggered_rules' in result:
-            result['triggered_rules'] = result['triggered_rules'].rstrip(', ')
-        
+
         return result
-    
+
     def _get_primary_reason(self, row):
         """Get the primary reason for the fraud score."""
-        triggered_rules = str(row.get('triggered_rules', ''))
-        
-        if not triggered_rules or triggered_rules == 'nan':
-            return "Standard risk assessment based on claim characteristics"
-        
-        # Split rules and get the first one
-        rules = [rule.strip() for rule in triggered_rules.split(',') if rule.strip()]
-        
+        rules = self._get_rules_list(row)
+
         if not rules:
             return "Standard risk assessment based on claim characteristics"
-        
+
         primary_rule = rules[0]
-        
+
         # Convert to user-friendly explanation
         explanations = self.reason_explanations.get(primary_rule, [
             f"Analysis detected: {primary_rule.lower()}"
         ])
-        
+
         return np.random.choice(explanations)
-    
+
     def _get_secondary_reason(self, row):
         """Get the secondary reason for the fraud score."""
-        triggered_rules = str(row.get('triggered_rules', ''))
-        
-        if not triggered_rules or triggered_rules == 'nan':
+        rules = self._get_rules_list(row)
+
+        if not rules:
             return "All standard verification checks completed"
-        
-        rules = [rule.strip() for rule in triggered_rules.split(',') if rule.strip()]
-        
+
         if len(rules) < 2:
             # If only one rule, provide a generic secondary reason
             return "Additional risk factors considered in overall assessment"
-        
+
         secondary_rule = rules[1]
         
         explanations = self.reason_explanations.get(secondary_rule, [
@@ -185,10 +178,10 @@ class ExplanationEngine:
         """Generate a comprehensive explanation for the fraud assessment."""
         risk_band = str(row.get('risk_band', 'Low')).lower()
         risk_score = row.get('risk_score', 0)
-        triggered_rules = str(row.get('triggered_rules', ''))
-        
+        rules = self._get_rules_list(row)
+
         # Base explanation based on risk level
-        base_explanations = self.explanation_templates.get(f"{risk_band}_risk", 
+        base_explanations = self.explanation_templates.get(f"{risk_band}_risk",
                                                           self.explanation_templates['low_risk'])
         base_explanation = np.random.choice(base_explanations)
         
@@ -206,8 +199,7 @@ class ExplanationEngine:
             details.append("The risk score of {:.2f}/100 is within normal ranges.".format(risk_score))
         
         # Rule-specific details
-        if triggered_rules and triggered_rules != 'nan':
-            rules = [rule.strip() for rule in triggered_rules.split(',') if rule.strip()]
+        if rules:
             if len(rules) == 1:
                 details.append("One fraud indicator was detected during analysis.")
             elif len(rules) > 1:
@@ -226,8 +218,24 @@ class ExplanationEngine:
         # Combine all parts
         explanation_parts = [base_explanation] + details
         full_explanation = " ".join(explanation_parts)
-        
+
         return full_explanation
+
+    def _get_rules_list(self, row):
+        """Extract a cleaned list of indicators from a row or result dict."""
+        top_indicators = row.get('top_indicators', None)
+
+        if isinstance(top_indicators, (list, tuple, set)):
+            cleaned = [str(rule).strip() for rule in top_indicators if str(rule).strip()]
+            if cleaned:
+                return cleaned
+
+        triggered_rules = row.get('triggered_rules', '')
+
+        if pd.isna(triggered_rules):
+            return []
+
+        return [rule.strip() for rule in str(triggered_rules).split(',') if rule.strip()]
     
     def get_action_recommendation(self, risk_band):
         """Get action recommendation based on risk band."""
@@ -255,9 +263,14 @@ class ExplanationEngine:
         
         # Most common rules
         all_rules = []
-        for rules_str in results_df['triggered_rules']:
-            if pd.notna(rules_str):
-                all_rules.extend([rule.strip() for rule in str(rules_str).split(',') if rule.strip()])
+        if 'top_indicators' in results_df.columns:
+            for indicators in results_df['top_indicators']:
+                if isinstance(indicators, (list, tuple, set)):
+                    all_rules.extend([str(rule).strip() for rule in indicators if str(rule).strip()])
+        else:
+            for rules_str in results_df['triggered_rules']:
+                if pd.notna(rules_str):
+                    all_rules.extend([rule.strip() for rule in str(rules_str).split(',') if rule.strip()])
         
         rule_counts = pd.Series(all_rules).value_counts()
         top_rules = rule_counts.head(3).index.tolist()
