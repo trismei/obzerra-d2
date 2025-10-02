@@ -2319,18 +2319,21 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         if severity: mapping['incident_severity'] = 'incident_severity'
         if state: mapping['incident_state'] = 'incident_state'
         
+        skip_alert_message = (
+            "We couldn't analyze this claim because preprocessing filtered it out "
+            "(for example, due to a zero or negative claim amount). Please review the "
+            "values and try again."
+        )
+
         processed_df = data_processor.prepare_data(df, mapping)
 
         if processed_df.empty:
             logs.append({
                 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'type': 'warning',
-                'message': 'Preprocessing filtered out all rows; claim amount below allowed minimum.'
+                'message': 'Claim skipped: preprocessing removed all rows (possible zero or negative amount).'
             })
-            return dbc.Alert(
-                "Entered claim amount is below the allowed minimum for analysis. Please enter a value within the acceptable range (greater than zero pesos).",
-                color="warning"
-            ), stats, logs
+            return dbc.Alert(skip_alert_message, color="warning"), stats, logs
 
         row = processed_df.iloc[0]
         model_ready = ml_manager.is_trained()
@@ -2353,14 +2356,32 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
 
         combined_result['claim_id'] = claim_id
         combined_result['total_claim_amount'] = amount_value
-        combined_result['final_risk_score'] = float(combined_result['risk_score'])
+
+        final_score = combined_result.get('final_risk_score')
+        if final_score is None:
+            final_score = combined_result.get('risk_score')
+
+        try:
+            final_score = None if final_score is None else float(final_score)
+        except (TypeError, ValueError):
+            final_score = None
+
+        if final_score is None:
+            logs.append({
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'type': 'warning',
+                'message': 'Claim skipped: missing final risk score after analysis.'
+            })
+            return dbc.Alert(skip_alert_message, color="warning"), stats, logs
+
+        combined_result['final_risk_score'] = final_score
         combined_result['risk_level'] = (
-            'Low' if combined_result['final_risk_score'] < 30
-            else 'Medium' if combined_result['final_risk_score'] < 70
+            'Low' if final_score < 30
+            else 'Medium' if final_score < 70
             else 'High'
         )
         combined_result['fraud_prediction'] = (
-            'Fraud' if combined_result['final_risk_score'] >= 70 else 'Legitimate'
+            'Fraud' if final_score >= 70 else 'Legitimate'
         )
         combined_result['ml_fraud_probability'] = combined_result.get('ml_fraud_prob')
         if 'ml_fraud_prob' in combined_result:
