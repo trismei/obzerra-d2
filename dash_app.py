@@ -2293,11 +2293,8 @@ def analyze_batch(n_clicks, data_json, claim_id_col, amount_col, hour_col, age_c
 def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incident_type, severity, state, police_report, stats, logs):
     stats = stats or {}
     logs = logs or []
-<<<<<<< HEAD
-=======
-    
-    # Initialize final_score at the very beginning
->>>>>>> 766d907c (`Added new functions and modified existing code in dash_app.py and utils/fraud_engine.py for improved fraud detection analysis and explanation generation.`)
+
+
     final_score = None
 
     if not claim_id or amount is None or hour is None:
@@ -2410,10 +2407,6 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         combined_result['claim_id'] = claim_id
         combined_result['total_claim_amount'] = amount_value
 
-<<<<<<< HEAD
-=======
-        # Ensure combined_result has a valid risk_score
->>>>>>> 766d907c (`Added new functions and modified existing code in dash_app.py and utils/fraud_engine.py for improved fraud detection analysis and explanation generation.`)
         final_score = resolve_final_score(combined_result)
 
         if final_score is None:
@@ -2424,13 +2417,11 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
             })
             return dbc.Alert(skip_alert_message, color="warning"), stats, logs
 
-<<<<<<< HEAD
-        combined_result['final_risk_score'] = final_score
-=======
+
         # Update combined_result with normalized final score
         combined_result['final_risk_score'] = final_score
         combined_result['risk_score'] = final_score  # Ensure risk_score is also set
->>>>>>> 766d907c (`Added new functions and modified existing code in dash_app.py and utils/fraud_engine.py for improved fraud detection analysis and explanation generation.`)
+
         combined_result['risk_level'] = (
             'Low' if final_score < 30
             else 'Medium' if final_score < 70
@@ -2476,15 +2467,12 @@ def analyze_single_claim(n_clicks, claim_id, amount, hour, age, witnesses, incid
         # Determine risk class for styling
         risk_class = f"risk-{combined_result['risk_level'].lower()}"
         
-<<<<<<< HEAD
         final_score_display = f"{final_score:.1f}/100" if final_score is not None else "N/A"
 
-=======
         # Display final score
         final_score_display = f"{final_score:.1f}/100"
 
         # Build result display
->>>>>>> 766d907c (`Added new functions and modified existing code in dash_app.py and utils/fraud_engine.py for improved fraud detection analysis and explanation generation.`)
         result_display = html.Div([
             html.H4("Analysis Complete", style={'marginBottom': '2rem', 'color': '#4f46e5'}),
             
