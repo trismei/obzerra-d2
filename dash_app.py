@@ -1507,7 +1507,71 @@ def create_guide_layout():
                 html.Li("Click 'Analyze Claims for Fraud'"),
                 html.Li("Review results table with risk scores and explanations"),
             ]),
-            html.P("Required fields: Claim ID, Total Amount, Incident Hour", style={'color': '#f59e0b', 'fontWeight': '500'})
+            html.P("Required fields: Claim ID, Total Amount, Incident Hour", style={'color': '#f59e0b', 'fontWeight': '500'}),
+            html.Div([
+                html.H5("Standard CSV Template", style={'marginTop': '1.5rem'}),
+                html.P("Use the following column structure so any team can prepare a compliant file without custom mapping:", style={'color': '#94a3b8'}),
+                html.Table([
+                    html.Thead(html.Tr([
+                        html.Th("Column Name"),
+                        html.Th("Description"),
+                        html.Th("Example")
+                    ])),
+                    html.Tbody([
+                        html.Tr([
+                            html.Td(html.Strong("claim_id")),
+                            html.Td("Unique identifier for the claim"),
+                            html.Td("C-2024-0015")
+                        ]),
+                        html.Tr([
+                            html.Td("policy_number"),
+                            html.Td("Policy ID associated with the claimant"),
+                            html.Td("POL-77821")
+                        ]),
+                        html.Tr([
+                            html.Td("incident_date"),
+                            html.Td("Date of the reported incident (YYYY-MM-DD)"),
+                            html.Td("2024-03-18")
+                        ]),
+                        html.Tr([
+                            html.Td(html.Strong("incident_hour")),
+                            html.Td("Hour of day the incident occurred (0-23)"),
+                            html.Td("14")
+                        ]),
+                        html.Tr([
+                            html.Td(html.Strong("total_amount")),
+                            html.Td("Claimed payout amount in your local currency"),
+                            html.Td("9850.75")
+                        ]),
+                        html.Tr([
+                            html.Td("claimant_age"),
+                            html.Td("Age of the claimant"),
+                            html.Td("42")
+                        ]),
+                        html.Tr([
+                            html.Td("claim_type"),
+                            html.Td("Category of claim (auto, property, medical, etc.)"),
+                            html.Td("auto")
+                        ]),
+                        html.Tr([
+                            html.Td("incident_city"),
+                            html.Td("City or municipality where the incident occurred"),
+                            html.Td("Quezon City")
+                        ]),
+                        html.Tr([
+                            html.Td("incident_state"),
+                            html.Td("State, province, or region for localization"),
+                            html.Td("NCR")
+                        ]),
+                        html.Tr([
+                            html.Td("incident_report_filed"),
+                            html.Td("Yes/No flag if an official incident report exists"),
+                            html.Td("Yes")
+                        ]),
+                    ])
+                ], style={'width': '100%', 'marginTop': '1rem'}),
+                html.P("Columns in bold are mandatory for the platform to compute risk scores; include the optional ones whenever possible for better accuracy.", style={'fontStyle': 'italic', 'color': '#94a3b8', 'marginTop': '1rem'})
+            ], className="csv-template")
         ], className="guide-section"),
         
         html.Div([
