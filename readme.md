@@ -7,6 +7,7 @@ A production-ready prototype for insurance claims analysts to triage suspicious 
 - [Core Capabilities](#core-capabilities)
 - [Architecture](#architecture)
 - [Data Assets](#data-assets)
+- [User Guide](#user-guide)
 - [Local Development Guide](#local-development-guide)
   - [Using UV (recommended)](#using-uv-recommended)
   - [Using pip](#using-pip)
@@ -72,6 +73,9 @@ Both `app.py` and `dash_app.py` automatically train the bundled models on startu
 | `sample_data.csv` | Lightweight sample for UI smoke tests. | Safe to share publicly; contains anonymized values. |
 
 All assets are stored locally in `assets/` to avoid any dependency on third-party storage providers.
+
+## User Guide
+The [Obzerra User Guide](docs/user-guide.md) consolidates onboarding instructions for partner companies. It includes the standard CSV template (with required fields highlighted), upload checklists, and tips so every organization can prepare data the same way before using the batch analysis workflow.
 
 ## Local Development Guide
 ### Using UV (recommended)
