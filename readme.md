@@ -117,7 +117,7 @@ After activating your environment, choose the interface that fits your workflow:
   ```bash
   python dash_app.py
   ```
-  Access it at `http://127.0.0.1:8050`.
+  Access it at `http://127.0.0.1:5000`.
 
 Both scripts will log progress while retraining the embedded LightGBM/XGBoost ensemble. Expect the first run to take a few seconds depending on hardware.
 
